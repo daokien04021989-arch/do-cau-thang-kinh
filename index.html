@@ -959,7 +959,7 @@ function veNM(t,r,idx){
   /* bản vẽ ghi số như mẫu SketchUp */
   var db=t.kieu==='db',cheo=t.kieu==='cheo',coDoc=t.kieu!=='thang'&&!db,pp=r.q?r.q.t:t,tan=coDoc?Math.tan(r.goc):0,s=(coDoc&&t.huong==='trai')?-1:1;
   var catDuoi=coDoc?(num(pp.catDuoi)||0):0,catDau=(coDoc&&!cheo)?(num(pp.catDau)||0):0,caoTam=coDoc?num(pp.cao):H,nH=r.lo.length;
-  var mm=function(v){return rd(v)+' mm';},duoiDoc=(t.kieu==='doc'&&nH>1)?56+(nH-2)*50:0;
+  var mm=function(v){return rd(v)+' mm';},duoiDoc=(t.kieu==='doc'&&nH>1)?230+(nH-2)*50:0;
   var aL=340,aR=2060,aB=1470-Math.max(duoiDoc+30,catDuoi>0?90:40),sc0=Math.min((aR-aL)/W,(aB-300)/H),aT=300+catDau*sc0,sc=Math.min((aR-aL)/W,(aB-aT)/H),ox=aL+((aR-aL)-W*sc)/2,oy=aT+((aB-aT)-H*sc)/2;
   function X(x){return ox+x*sc;}function Y(y){return oy+(H-y)*sc;}
   function canX(x){return catX(pts,Math.min(Math.max(x,0.01),W-0.01));}
@@ -1008,6 +1008,20 @@ function veNM(t,r,idx){
   function trong(x,y){if(x<=0||x>=W)return false;var v=canX(x);return v.length>=2&&y>=v[0]&&y<=v[v.length-1];}
   function ben0(i){var l=r.lo[i],xr=l.x-x0,yLo=l.yb+l.duoi-y0,dx=270/sc;if(trong(xr+dx,yLo))return 1;if(trong(xr-dx,yLo))return -1;return (X(xr)+220>X(W)+60)?-1:1;}
   function ben(i){var b=ben0(i),l=r.lo[i];if(b>0&&i+1<nH&&ben0(i+1)<0&&(r.lo[i+1].x-l.x)*sc<560&&l.x-x0-270/sc>0)return -1;return b;}
+  /* khoảng theo dốc giữa các hàng: đẩy đường kích thước ra ngoài toàn bộ vùng cụm số lỗ để không bao giờ chạm nhau */
+  if(t.kieu==='doc'&&nH>1){
+    var Lu=Math.sqrt(1+tan*tan),ux=1/Lu,uy=-s*tan/Lu,nx=-uy,ny=ux,ang=Math.atan2(uy,ux),goc0x=X(r.lo[0].x-x0),goc0y=Y(r.lo[0].yb-y0),sau=0;
+    r.lo.forEach(function(l,i){
+      var hx=X(l.x-x0),sd=ben(i),rong=chatHep(i)?150:215,co2=l.tren>0,gy=co2?(Y(l.yb+l.duoi-y0)+Y(l.yb+l.tren-y0))/2:(Y(l.yb+l.duoi-y0)+Y(duoiAt(l.x-x0)))/2,x1=hx+sd*64,x2=hx+sd*(78+rong),h1=co2?72:28;
+      [[x1,gy-h1],[x1,gy+h1],[x2,gy-h1],[x2,gy+h1]].forEach(function(p){sau=Math.max(sau,(p[0]-goc0x)*nx+(p[1]-goc0y)*ny);});
+    });
+    var off0=Math.min(280,Math.max(56,sau+58));
+    for(var k=1;k<nH;k++){
+      var off=off0+(k-1)*50,a0=r.lo[0],ak=r.lo[k],ax=X(a0.x-x0),ay=Y(a0.yb-y0),bx=X(ak.x-x0),by=Y(ak.yb-y0),ax1=ax+nx*off,ay1=ay+ny*off,bx1=bx+nx*off,by1=by+ny*off;
+      L(ax,ay,ax1,ay1,'#888888',1.2,1);L(bx,by,bx1,by1,'#888888',1.2,1);L(ax1,ay1,bx1,by1,INK,2);tick(ax1,ay1);tick(bx1,by1);
+      g.save();g.translate((ax1+bx1)/2,(ay1+by1)/2-10);g.rotate(ang);T(mm(num(t.hang[k].cach)),0,0,34,700,INK,'center',true);g.restore();
+    }
+  }
   function kheSat(i){return ben(i)>0&&i+1<nH&&ben(i+1)<0&&(r.lo[i+1].x-r.lo[i].x)*sc<660;}
   function chatHep(i){return kheSat(i)||(i>0&&kheSat(i-1));}
   r.lo.forEach(function(l,i){
@@ -1032,15 +1046,6 @@ function veNM(t,r,idx){
     L(hx,Y(trenAt(xr)),hx,hy,INK,1.5,1);L(X(0),hy,hx,hy,INK,1.5,1);holeMark(hx,hy);
     T(mm(xr)+' từ mép trái, '+mm(l.m)+' từ mép trên',hx+rp+14,hy+40,30,700,INK,'left',true);
   });
-  /* khoảng theo dốc giữa các hàng */
-  if(t.kieu==='doc'&&nH>1){
-    var Lu=Math.sqrt(1+tan*tan),ux=1/Lu,uy=-s*tan/Lu,nx=-uy,ny=ux,ang=Math.atan2(uy,ux);
-    for(var k=1;k<nH;k++){
-      var off=56+(k-1)*50,a0=r.lo[0],ak=r.lo[k],ax=X(a0.x-x0),ay=Y(a0.yb-y0),bx=X(ak.x-x0),by=Y(ak.yb-y0),ax1=ax+nx*off,ay1=ay+ny*off,bx1=bx+nx*off,by1=by+ny*off;
-      L(ax,ay,ax1,ay1,'#888888',1.2,1);L(bx,by,bx1,by1,'#888888',1.2,1);L(ax1,ay1,bx1,by1,INK,2);tick(ax1,ay1);tick(bx1,by1);
-      g.save();g.translate((ax1+bx1)/2,(ay1+by1)/2-10);g.rotate(ang);T(mm(num(t.hang[k].cach)),0,0,34,700,INK,'center',true);g.restore();
-    }
-  }
   /* ghi chú nhà máy */
   var yN=1525,wN=CW-120;
   yN=wrap('GHI CHÚ NHÀ MÁY: Đơn vị mm. Nhìn tấm từ phía trong. Khoảng giữa các hàng lỗ đo ngang. Khoảng lỗ đo đứng, tính từ mép kính ngay dưới lỗ. Kính cường lực '+day+' ly, màu '+mau+'. Khoan lỗ và khoét TRƯỚC khi tôi. Lỗ Ø'+phi+' khoan thẳng, mài vát mép lỗ. Mài mép cạnh toàn bộ. Dung sai ±1.'+((r.notch&&r.notch.length)?' Khoét góc: bo góc trong R10.':'')+(c.ghichu?' Ghi chú chung: '+c.ghichu:''),60,yN,wN,30,42,500,INK);
