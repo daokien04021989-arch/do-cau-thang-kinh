@@ -1006,16 +1006,24 @@ function veNM(t,r,idx){
   var rp=Math.max(9,phi/2*sc);
   function holeMark(hx,hy){g.beginPath();g.arc(hx,hy,rp,0,7);g.fillStyle='#ffffff';g.fill();g.strokeStyle=INK;g.lineWidth=3.5;g.stroke();L(hx-rp-6,hy,hx+rp+6,hy,INK,1.3);L(hx,hy-rp-6,hx,hy+rp+6,INK,1.3);}
   function trong(x,y){if(x<=0||x>=W)return false;var v=canX(x);return v.length>=2&&y>=v[0]&&y<=v[v.length-1];}
-  function ben0(i){var l=r.lo[i],xr=l.x-x0,yLo=l.yb+l.duoi-y0,dx=230/sc;if(trong(xr+dx,yLo))return 1;if(trong(xr-dx,yLo))return -1;return (X(xr)+220>X(W)+60)?-1:1;}
-  function ben(i){var b=ben0(i),l=r.lo[i];if(b>0&&i+1<nH&&ben0(i+1)<0&&(r.lo[i+1].x-l.x)*sc<470&&trong(l.x-x0-230/sc,l.yb+l.duoi-y0))return -1;return b;}
+  function ben0(i){var l=r.lo[i],xr=l.x-x0,yLo=l.yb+l.duoi-y0,dx=270/sc;if(trong(xr+dx,yLo))return 1;if(trong(xr-dx,yLo))return -1;return (X(xr)+220>X(W)+60)?-1:1;}
+  function ben(i){var b=ben0(i),l=r.lo[i];if(b>0&&i+1<nH&&ben0(i+1)<0&&(r.lo[i+1].x-l.x)*sc<560&&l.x-x0-270/sc>0)return -1;return b;}
+  function kheSat(i){return ben(i)>0&&i+1<nH&&ben(i+1)<0&&(r.lo[i+1].x-r.lo[i].x)*sc<660;}
+  function chatHep(i){return kheSat(i)||(i>0&&kheSat(i-1));}
   r.lo.forEach(function(l,i){
     var xr=l.x-x0,hx=X(xr),h=t.hang[i],d=num(h.duoi),tr=num(h.tren),eY=duoiAt(xr),yLo=l.yb+l.duoi-y0,yHi=l.tren>0?l.yb+l.tren-y0:yLo,side=ben(i),xT=hx+side*64,txtA=side>0?'left':'right',xTxt=xT+side*14;
     var yTop=Math.max(yGap[i]||0,yGap[i+1]||0);
     L(hx,Y(yHi),hx,Y(yTop),INK,1.5);L(hx,Y(eY),hx,Y(yLo),INK,1.5,1);
     L(hx,Y(eY),xT+side*8,Y(eY),INK,1.6);L(hx,Y(yLo),xT+side*8,Y(yLo),INK,1.6);
-    var yd2=(Y(yLo)+Y(eY))/2+12,yd1=yd2;
-    if(l.tren>0){L(hx,Y(yHi),xT+side*8,Y(yHi),INK,1.6);L(xT,Y(yHi),xT,Y(yLo),INK,1.6);yd1=(Y(yHi)+Y(yLo))/2+12;if(yd2-yd1<40)yd2=yd1+40;T(mm(tr-d),xTxt,yd1,32,700,INK,txtA,true);}
-    L(xT,Y(yLo),xT,Y(eY),INK,1.6);T(mm(d),xTxt,yd2,32,700,INK,txtA,true);
+    L(xT,Y(yLo),xT,Y(eY),INK,1.6);
+    if(l.tren>0){
+      var yG=(Y(yHi)+Y(yLo))/2;
+      L(hx,Y(yHi),xT+side*8,Y(yHi),INK,1.6);L(xT,Y(yHi),xT,Y(yLo),INK,1.6);
+      var dv=chatHep(i)?'':' mm';
+      T('Trên '+rd(tr)+dv,xTxt,yG-30,30,700,RD,txtA,true);
+      T('2 lỗ '+rd(tr-d)+dv,xTxt,yG+10,30,700,INK,txtA,true);
+      T('Dưới '+rd(d)+dv,xTxt,yG+50,30,700,RD,txtA,true);
+    }else T('Dưới '+rd(d)+(chatHep(i)?'':' mm'),xTxt,(Y(yLo)+Y(eY))/2+12,30,700,RD,txtA,true);
     holeMark(hx,Y(yLo));if(l.tren>0)holeMark(hx,Y(yHi));
     if(cheo&&num(h.moTren)>0){var yM=trenAt(xr)-num(h.moTren);L(hx,Y(trenAt(xr)),hx,Y(yM),INK,1.5,1);holeMark(hx,Y(yM));T(mm(num(h.moTren)),hx-side*20,Y(yM)+10,32,700,INK,side>0?'right':'left',true);}
   });
@@ -1035,7 +1043,7 @@ function veNM(t,r,idx){
   }
   /* ghi chú nhà máy */
   var yN=1525,wN=CW-120;
-  yN=wrap('GHI CHÚ NHÀ MÁY: Nhìn tấm từ phía trong. Khoảng giữa các hàng lỗ đo ngang. Khoảng lỗ đo đứng, tính từ mép kính ngay dưới lỗ. Kính cường lực '+day+' ly, màu '+mau+'. Khoan lỗ và khoét TRƯỚC khi tôi. Lỗ Ø'+phi+' khoan thẳng, mài vát mép lỗ. Mài mép cạnh toàn bộ. Dung sai ±1.'+((r.notch&&r.notch.length)?' Khoét góc: bo góc trong R10.':'')+(c.ghichu?' Ghi chú chung: '+c.ghichu:''),60,yN,wN,30,42,500,INK);
+  yN=wrap('GHI CHÚ NHÀ MÁY: Đơn vị mm. Nhìn tấm từ phía trong. Khoảng giữa các hàng lỗ đo ngang. Khoảng lỗ đo đứng, tính từ mép kính ngay dưới lỗ. Kính cường lực '+day+' ly, màu '+mau+'. Khoan lỗ và khoét TRƯỚC khi tôi. Lỗ Ø'+phi+' khoan thẳng, mài vát mép lỗ. Mài mép cạnh toàn bộ. Dung sai ±1.'+((r.notch&&r.notch.length)?' Khoét góc: bo góc trong R10.':'')+(c.ghichu?' Ghi chú chung: '+c.ghichu:''),60,yN,wN,30,42,500,INK);
   T('Diện tích '+r.m2.toFixed(2).replace('.',',')+' m²  ·  khoảng '+rd(r.kg)+' kg'+(t.ghichu?'  ·  Ghi chú: '+t.ghichu:'')+'  ·  Người đo: '+(c.tho||'')+'  ·  Công trình: '+(c.diachi||''),60,yN+6,28,600,DIM);
   if(S.sample){g.save();g.translate(CW/2,CH/2);g.rotate(-0.35);g.globalAlpha=.22;T('VÍ DỤ, KHÔNG GỬI NHÀ MÁY',0,0,170,800,'#d00000','center');g.restore();}
   return cv;
