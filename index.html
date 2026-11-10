@@ -96,7 +96,7 @@ summary{font-weight:700;cursor:pointer;min-height:30px}
   <h1>Đo cầu thang kính</h1>
 </div></header>
 
-<div class="wrap"><main>
+<div class="wrap"><main><div id="trongApp" class="msg warn" style="margin:10px 0;display:grid;gap:8px" hidden></div>
   <div class="sample" id="sampleBox">
     <p>Đây là phiếu ví dụ để xem cách điền. Đo thật thì bấm nút dưới đây.</p>
     <button class="gold" id="startNew" type="button">Bắt đầu phiếu đo mới</button>
@@ -208,9 +208,9 @@ summary{font-weight:700;cursor:pointer;min-height:30px}
     <h2><b>3</b>Gửi về xưởng</h2>
     <div class="f" style="margin-bottom:12px"><label for="c-ghichu">Ghi chú chung</label><textarea id="c-ghichu" data-c="ghichu" placeholder="Đá ốp dày bao nhiêu, vướng gì khi vận chuyển kính..."></textarea></div>
     <div id="sumMsg" style="display:grid;gap:8px;margin-bottom:12px"></div>
-    <p class="temp" id="nmHint" style="margin:6px 0 10px">Tấm nào đủ số và qua hết chốt thì có ảnh bản vẽ ở đây. Bấm Gửi qua Zalo rồi chọn Zalo, hoặc tải ảnh về máy rồi gửi từ thư viện ảnh.</p>
+    <p class="temp" id="nmHint" style="margin:6px 0 10px">Tấm nào đủ số và qua hết chốt thì có bản vẽ ở đây. Cách dễ nhất: bấm Gửi qua Zalo rồi chọn Zalo. Hoặc tải 1 file PDF gồm mọi tấm rồi gửi file đó. Ảnh lẻ thì bấm giữ vào ảnh, chọn Lưu ảnh.</p>
     <div id="nmMsg" style="display:grid;gap:8px;margin-bottom:10px"></div>
-    <div class="row" id="nmAllBox" style="margin-bottom:12px" hidden><button type="button" class="gold" id="nmShareAll" hidden>Gửi tất cả qua Zalo</button><button type="button" class="pri" id="nmAll">Tải tất cả ảnh về máy</button></div>
+    <div class="row" id="nmAllBox" style="margin-bottom:12px" hidden><button type="button" class="gold" id="nmShareAll" hidden>Gửi tất cả ảnh qua Zalo</button><button type="button" class="gold" id="nmPdfShare" hidden>Gửi file PDF qua Zalo</button><button type="button" class="pri" id="nmPdf">Tải 1 file PDF (mọi tấm)</button><button type="button" id="nmAll">Tải từng ảnh về máy</button></div>
     <div id="nmList"></div>
     <div class="row" style="margin-top:14px"><button type="button" class="danger" id="wipe">Xóa hết, làm phiếu mới</button></div>
   </section>
@@ -252,7 +252,11 @@ function sample(){
   s.ds.forEach(function(t){var r=tinhBase(t,s.c);t.hang.forEach(function(h,k){if(k>0){var d=cheoTinh(r,k);h.cheoA=String(rd(d.A));h.cheoB=d.B===null?'':String(rd(d.B));}});if(t.kieu==='db'){t.cheoGoc=String(rd(cheoDinh(r)));t.dinh.forEach(function(d,i){d.dai=String(rd(dinhDai(r.poly,i)));});}});
   return s;
 }
-function load(){try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&o.c&&o.ds&&o.ds.length){o.ds.forEach(function(d){if(d.id>=uid)uid=d.id+1;});return o;}}}catch(e){}return sample();}
+/* Số đo mang theo link (?d=...) khi chuyển từ trình duyệt trong Zalo sang Chrome/Safari. */
+function maHoa(o){return btoa(unescape(encodeURIComponent(JSON.stringify(o))));}
+function layTuLink(){try{var m=/[?&]d=([^&]+)/.exec(location.search);if(!m)return null;var o=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1])))));
+  if(o&&o.c&&o.ds&&o.ds.length){try{localStorage.setItem(KEY,JSON.stringify(o));}catch(e){}try{history.replaceState(null,'',location.pathname);}catch(e){}return o;}}catch(e){}return null;}
+function load(){var tl=layTuLink();if(tl){tl.ds.forEach(function(d){if(d.id>=uid)uid=d.id+1;});return tl;}try{var r=localStorage.getItem(KEY);if(r){var o=JSON.parse(r);if(o&&o.c&&o.ds&&o.ds.length){o.ds.forEach(function(d){if(d.id>=uid)uid=d.id+1;});return o;}}}catch(e){}return sample();}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 var S=load();
 
@@ -1117,32 +1121,61 @@ function veNM(t,r,idx){
   if(S.sample){g.save();g.translate(CW/2,CH/2);g.rotate(-0.35);g.globalAlpha=.22;T('VÍ DỤ, KHÔNG GỬI NHÀ MÁY',0,0,170,800,'#d00000','center');g.restore();}
   return cv;
 }
-function dataBlob(u){var p=u.split(','),b=atob(p[1]),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return new Blob([a],{type:'image/jpeg'});}
+function byteOf(u){var b=atob(u.split(',')[1]),a=new Uint8Array(b.length);for(var i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
+function dataBlob(u){return new Blob([byteOf(u)],{type:'image/jpeg'});}
 function lenLichNM(){clearTimeout(nmTimer);nmTimer=setTimeout(renderNM,500);}
 function renderNM(){
   var key=JSON.stringify(S);if(key===nmKey)return;nmKey=key;
   var c=S.c,msg=[],list=[];
   if(!c.mau)msg.push({t:'bad',m:'Chưa chọn màu kính nên chưa ra được ảnh.'});
   if(!num(c.phi))msg.push({t:'bad',m:'Chưa nhập đường kính lỗ nên chưa ra được ảnh.'});
+  nmData.forEach(function(d){if(d.blobUrl)URL.revokeObjectURL(d.blobUrl);});
   nmData=[];
   S.ds.forEach(function(t,i){
     var r=tinh(t,c);
     if(!r.xong){msg.push({t:'warn',m:ten(i)+' chưa đủ số hoặc còn lỗi nên chưa có ảnh.'});return;}
     if(!c.mau||!num(c.phi))return;
-    var file=ten(i)+'_'+rd(r.W)+'x'+rd(r.bao)+'.jpg',url=veNM(t,r,i).toDataURL('image/jpeg',0.9);
-    nmData.push({file:file,url:url});
-    list.push('<div class="nm"><div class="ten">'+esc(file)+'</div>'+(r.canh.length?'<p class="msg warn">'+esc(r.canh.join(' '))+'</p>':'')+'<img alt="Bản vẽ '+ten(i)+' gửi nhà máy" src="'+url+'">'+(coChiaSe()?'<button type="button" class="gold" data-nmshare="'+(nmData.length-1)+'">Gửi ảnh '+ten(i)+' qua Zalo</button>':'')+'<button type="button" data-nmsave="'+(nmData.length-1)+'">Tải ảnh '+ten(i)+' về máy</button></div>');
+    var cv=veNM(t,r,i),file=ten(i)+'_'+rd(r.W)+'x'+rd(r.bao)+'.jpg',url=cv.toDataURL('image/jpeg',0.9),bu=URL.createObjectURL(dataBlob(url));
+    nmData.push({file:file,url:url,w:cv.width,h:cv.height,blobUrl:bu});
+    list.push('<div class="nm"><div class="ten">'+esc(file)+'</div>'+(r.canh.length?'<p class="msg warn">'+esc(r.canh.join(' '))+'</p>':'')+'<img alt="Bản vẽ '+ten(i)+' gửi nhà máy" src="'+bu+'">'+(coChiaSe()?'<button type="button" class="gold" data-nmshare="'+(nmData.length-1)+'">Gửi ảnh '+ten(i)+' qua Zalo</button>':'')+'<button type="button" data-nmsave="'+(nmData.length-1)+'">Tải ảnh '+ten(i)+' về máy</button></div>');
   });
   document.getElementById('nmMsg').innerHTML=msg.map(function(x){return '<p class="msg '+x.t+'">'+esc(x.m)+'</p>';}).join('');
   document.getElementById('nmList').innerHTML=list.join('');
-  document.getElementById('nmAllBox').hidden=nmData.length<2;
-  document.getElementById('nmShareAll').hidden=!coChiaSe();
+  document.getElementById('nmAllBox').hidden=nmData.length<1;
+  document.getElementById('nmShareAll').hidden=!coChiaSe()||nmData.length<2;
+  document.getElementById('nmAll').hidden=nmData.length<2;
+  document.getElementById('nmPdfShare').hidden=!coChiaSe('application/pdf');
 }
-var _coCS=null;
-function coChiaSe(){
-  if(_coCS!==null)return _coCS;
-  try{_coCS=window.top===window&&!!navigator.canShare&&navigator.canShare({files:[new File([new Uint8Array(1)],'a.jpg',{type:'image/jpeg'})]});}catch(e){_coCS=false;}
-  return _coCS;
+/* Một file PDF A3 ngang, mỗi tấm một trang, ảnh JPEG nhúng thẳng (không cần thư viện). */
+function taoPDF(ds){
+  var enc=new TextEncoder(),parts=[],len=0,off=[],n=ds.length,Wp=1190.55,Hp=841.89,kids=[];
+  function w(x){var b=typeof x==='string'?enc.encode(x):x;parts.push(b);len+=b.length;}
+  for(var i=0;i<n;i++)kids.push((3+3*i)+' 0 R');
+  w('%PDF-1.4\n');
+  off[1]=len;w('1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n');
+  off[2]=len;w('2 0 obj<</Type/Pages/Kids['+kids.join(' ')+']/Count '+n+'>>endobj\n');
+  ds.forEach(function(d,i){
+    var p=3+3*i,bs=byteOf(d.url),cs='q '+Wp+' 0 0 '+Hp+' 0 0 cm /Im'+i+' Do Q';
+    off[p]=len;w(p+' 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 '+Wp+' '+Hp+']/Resources<</XObject<</Im'+i+' '+(p+2)+' 0 R>>>>/Contents '+(p+1)+' 0 R>>endobj\n');
+    off[p+1]=len;w((p+1)+' 0 obj<</Length '+cs.length+'>>stream\n'+cs+'\nendstream\nendobj\n');
+    off[p+2]=len;w((p+2)+' 0 obj<</Type/XObject/Subtype/Image/Width '+d.w+'/Height '+d.h+'/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length '+bs.length+'>>stream\n');w(bs);w('\nendstream\nendobj\n');
+  });
+  var nO=3+3*n,xo=len,x='xref\n0 '+nO+'\n0000000000 65535 f \n';
+  for(var k=1;k<nO;k++)x+=('000000000'+off[k]).slice(-10)+' 00000 n \n';
+  w(x+'trailer<</Size '+nO+'/Root 1 0 R>>\nstartxref\n'+xo+'\n%%EOF\n');
+  return new Blob(parts,{type:'application/pdf'});
+}
+function tenPDF(){var k=String(S.c.khach||'').normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'');return 'Ban_ve_kinh_'+(k?k+'_':'')+(S.c.ngay||today())+'.pdf';}
+function taiBlob(blob,file){
+  if(nmDl)return nmDl.save({filename:file,data:blob});
+  if(window.top===window){var u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=file;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u);},60000);return Promise.resolve();}
+  return Promise.reject({code:'unavailable'});
+}
+var _coCS={};
+function coChiaSe(type){
+  type=type||'image/jpeg';if(_coCS[type]!==undefined)return _coCS[type];
+  try{_coCS[type]=window.top===window&&!!navigator.canShare&&navigator.canShare({files:[new File([new Uint8Array(1)],type==='application/pdf'?'a.pdf':'a.jpg',{type:type})]});}catch(e){_coCS[type]=false;}
+  return _coCS[type];
 }
 function taiMotAnh(d){
   if(nmDl)return nmDl.save({filename:d.file,data:dataBlob(d.url)});
@@ -1171,6 +1204,30 @@ document.getElementById('nmAll').addEventListener('click',async function(){
   catch(er){b.textContent=(er&&er.code==='declined')?old:'Chưa tải được, bấm giữ vào từng ảnh rồi chọn Lưu ảnh';}
   b.disabled=false;
 });
+document.getElementById('nmPdf').addEventListener('click',function(){
+  var b=this,old=b.textContent;if(!nmData.length)return;
+  taiBlob(taoPDF(nmData),tenPDF()).then(function(){b.textContent='Đã tải file PDF. Mở mục Tải xuống (Download) để xem';setTimeout(function(){b.textContent=old;},5000);},function(er){if(er&&er.code==='declined')return;b.textContent='Chưa tải được, dùng nút Gửi qua Zalo';});
+});
+document.getElementById('nmPdfShare').addEventListener('click',function(){
+  var b=this;if(!nmData.length)return;
+  navigator.share({files:[new File([taoPDF(nmData)],tenPDF(),{type:'application/pdf'})]}).catch(function(er){if(er&&er.name==='AbortError')return;b.textContent='Chưa gửi được, bấm Tải 1 file PDF';});
+});
+/* Mở trong Zalo, Facebook: trình duyệt cài sẵn trong app không cho tải ảnh. Báo ngay từ đầu và chuyển sang Chrome/Safari kèm toàn bộ số đo. */
+(function(){
+  var ua=navigator.userAgent||'',trong=/Zalo|FBAN|FBAV|FB_IAB|Instagram|Line\/|MicroMessenger|; wv\)/i.test(ua),adr=/Android/i.test(ua),ios=/iPhone|iPad|iPod/i.test(ua),box=document.getElementById('trongApp');
+  if(!trong||window.top!==window||!box)return;
+  function linkKem(){return location.origin+location.pathname+'?d='+encodeURIComponent(maHoa(S));}
+  var h='<b>Đang mở app trong Zalo, ở đây không tải được ảnh bản vẽ.</b>';
+  if(adr)h+='<span>Bấm nút dưới để mở bằng Chrome. Số đã nhập được mang theo.</span><button type="button" class="gold" id="moChrome">Mở bằng Chrome</button>';
+  else h+='<span>'+(ios?'Bấm nút dưới để chép link kèm số đã nhập, rồi mở Safari, dán link vào ô địa chỉ.':'Chép link rồi mở bằng trình duyệt Chrome.')+'</span><button type="button" class="gold" id="chepLink">Chép link kèm số đo</button>';
+  box.innerHTML=h;box.hidden=false;
+  var mc=document.getElementById('moChrome');
+  if(mc)mc.onclick=function(){var u=linkKem();location.href='intent://'+u.replace(/^https?:\/\//,'')+'#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(u)+';end';};
+  var cl=document.getElementById('chepLink');
+  if(cl)cl.onclick=function(){var u=linkKem(),b=this;
+    function xong(){b.textContent='Đã chép. Mở '+(ios?'Safari':'Chrome')+', dán vào ô địa chỉ';}
+    if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(u).then(xong,function(){prompt('Chép link này:',u);});else prompt('Chép link này:',u);};
+})();
 if(document.fonts&&document.fonts.load){Promise.all([document.fonts.load('800 40px "Be Vietnam Pro"','Ấ'),document.fonts.load('500 30px "Be Vietnam Pro"','Ấ'),document.fonts.load('700 30px "Be Vietnam Pro"','Ấ'),document.fonts.load('600 30px "Be Vietnam Pro"','Ấ')]).then(function(){nmKey='';lenLichNM();},function(){});}
 if(window.claude&&window.claude.use){window.claude.use('downloads').then(function(d){if(d){nmDl=d;nmKey='';lenLichNM();}},function(){});}
 renderCommon();renderList();
