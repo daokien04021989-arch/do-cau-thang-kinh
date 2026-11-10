@@ -271,6 +271,25 @@ function clipY(p,keep,yc){
   });
   return out;
 }
+function trongDG(p,poly){var c=false;poly.forEach(function(a,i){var b=poly[(i+1)%poly.length];if((a[1]>p[1])!==(b[1]>p[1])&&p[0]<a[0]+(b[0]-a[0])*(p[1]-a[1])/(b[1]-a[1]))c=!c;});return c;}
+/* Cắt bỏ một hình chữ nhật (khoét góc) khỏi tấm. Hộp phủ ra ngoài góc tấm, chỉ một góc hộp nằm trong kính. */
+function cutBox(p,b){
+  var E=1e-7;function inB(q){return q[0]>b.x0+E&&q[0]<b.x1-E&&q[1]>b.y0+E&&q[1]<b.y1-E;}
+  var gc=[[b.x0,b.y0],[b.x1,b.y0],[b.x1,b.y1],[b.x0,b.y1]].filter(function(q){return trongDG(q,p);});
+  if(gc.length!==1)return null;
+  var out=[],vao=0,ra=0;
+  p.forEach(function(a,i){var q=p[(i+1)%p.length],dx=q[0]-a[0],dy=q[1]-a[1],t0=0,t1=1,okk=true;
+    [[-dx,a[0]-b.x0],[dx,b.x1-a[0]],[-dy,a[1]-b.y0],[dy,b.y1-a[1]]].forEach(function(pq){if(!okk)return;var P=pq[0],Q=pq[1];
+      if(Math.abs(P)<1e-12){if(Q<0)okk=false;return;}var rr=Q/P;if(P<0){if(rr>t1)okk=false;else if(rr>t0)t0=rr;}else{if(rr<t0)okk=false;else if(rr<t1)t1=rr;}});
+    var qua=okk&&t1-t0>1e-9;
+    if(!inB(a))out.push(a);
+    if(qua&&!inB(a)&&t0>1e-9){out.push([a[0]+dx*t0,a[1]+dy*t0]);vao++;}
+    if(qua&&!inB(q)&&t1<1-1e-9){out.push(gc[0]);out.push([a[0]+dx*t1,a[1]+dy*t1]);ra++;}
+  });
+  if(vao!==1||ra!==1)return null;
+  var o2=[];out.forEach(function(q){var l=o2[o2.length-1];if(!l||Math.abs(l[0]-q[0])>1e-6||Math.abs(l[1]-q[1])>1e-6)o2.push(q);});
+  return o2;
+}
 /* Tính một tấm, mm, theo đúng định nghĩa ô của plugin. Gốc X ở mép trái kính, nhìn từ phía trong. Lỗ dưới, lỗ trên đo đứng từ cạnh dốc dưới. */
 function tinhCore(t,c){
   var r={thieu:[],loi:[],canh:[],keys:[],goc:0,gocBac:null,W:null,lo:[],poly:null,notch:[]};
@@ -332,14 +351,28 @@ function tinhCore(t,c){
   if(catDau>0)pts=clipY(pts,function(y){return y<=yMax+1e-9;},yMax);
   if(catDuoi>0)pts=clipY(pts,function(y){return y>=yMin-1e-9;},yMin);
   function caoTai(x){return Math.max(0,Math.min(top(x),yMax)-Math.max(bot(x),yMin));}
-  var minY=Infinity,maxY=-Infinity,area=0;
-  pts.forEach(function(p,j){var q=pts[(j+1)%pts.length];minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);area+=p[0]*q[1]-q[0]*p[1];});
-  area=Math.abs(area)/2;
+  var pts0=pts.slice();
+  /* Khoét góc: rộng R đo ngang từ mép đứng, cao C là cạnh PHÍA TRONG (anh Kiên chốt 10-11-2026), đo đứng từ mép kính dốc tại cạnh trong. */
+  function eB(x){return Math.max(bot(x),yMin);}function eT(x){return Math.min(top(x),yMax);}
   KHOET.forEach(function(k){
-    var R=num(t['k'+k[0]+'R'])||0,C=num(t['k'+k[0]+'C'])||0;if(!(R>0&&C>0))return;
-    var duoi=k[0][0]==='d',trai=k[0][1]==='t',x=trai?0:W-R,yg=duoi?Math.max(bot(trai?0:W),yMin):Math.min(top(trai?0:W),yMax),y=duoi?yg:yg-C;
-    r.notch.push({x:x,y:y,R:R,C:C,ten:k[1]});area-=R*C;
+    var R=num(t['k'+k[0]+'R'])||0,C=num(t['k'+k[0]+'C'])||0;if(!(R>0||C>0))return;
+    if(!(R>0&&C>0)){r.loi.push('Khoét '+k[1]+': nhập đủ rộng ngang và cao đứng.');return;}
+    var duoi=k[0][0]==='d',trai=k[0][1]==='t',xo=trai?0:W,xi=trai?R:W-R,BIG=1e6,yIn,yC,box,ngoai;
+    if(R>=W/2){r.loi.push('Khoét '+k[1]+': rộng '+rd(R)+' quá nửa tấm.');return;}
+    if(duoi){yIn=eB(xi);yC=yIn+C;ngoai=yC-eB(xo);box={x0:trai?-BIG:xi,x1:trai?xi:BIG,y0:-BIG,y1:yC};
+      if(yC>=eT(xo)-1||yC>=eT(xi)-1){r.loi.push('Khoét '+k[1]+': cao '+rd(C)+' vượt hết chiều cao tấm.');return;}}
+    else{yIn=eT(xi);yC=yIn-C;ngoai=eT(xo)-yC;box={x0:trai?-BIG:xi,x1:trai?xi:BIG,y0:yC,y1:BIG};
+      if(yC<=eB(xo)+1||yC<=eB(xi)+1){r.loi.push('Khoét '+k[1]+': cao '+rd(C)+' vượt hết chiều cao tấm.');return;}}
+    if(ngoai<=1){r.loi.push('Khoét '+k[1]+': cao '+rd(C)+' ngắn quá, chưa tới mép đứng vì kính dốc. Đo lại cạnh cao phía trong.');return;}
+    var p2=cutBox(pts,box);if(!p2){r.loi.push('Khoét '+k[1]+': số đo không cắt được góc. Đo lại.');return;}
+    pts=p2;r.notch.push({xi:xi,xo:xo,yIn:yIn,yC:yC,ngoai:ngoai,R:R,C:C,duoi:duoi,trai:trai,ten:k[1]});
   });
+  var minY=Infinity,maxY=-Infinity,area=0;
+  pts0.forEach(function(p){minY=Math.min(minY,p[1]);maxY=Math.max(maxY,p[1]);});
+  pts.forEach(function(p,j){var q=pts[(j+1)%pts.length];area+=p[0]*q[1]-q[0]*p[1];});
+  area=Math.abs(area)/2;
+  t.hang.forEach(function(h,i){var X=xs[i];r.notch.forEach(function(k){
+    if(X>Math.min(k.xi,k.xo)-40&&X<Math.max(k.xi,k.xo)+40)r.canh.push('Hàng '+(i+1)+' nằm sát hoặc trong vùng khoét '+k.ten+'. Kiểm tra lại.');});});
   var day=num(c.day)||10,bien=2*day;
   t.hang.forEach(function(h,i){
     var du=num(h.duoi),tr=num(h.tren),X=xs[i];
@@ -350,7 +383,7 @@ function tinhCore(t,c){
     if(i>0&&Math.abs(tr-du-(r.lo[0].tren-r.lo[0].duoi))>8&&tr>0&&r.lo[0].tren>0)r.canh.push('Khoảng 2 lỗ hàng '+(i+1)+' khác hàng 1 quá 8 mm. Đo lại.');
   });
   if(W>3500&&day<12)r.canh.push('Tấm dài trên 3,5 m. Nên tính kính 12 ly, hỏi xưởng.');
-  r.W=W;r.hL=caoTai(0);r.hR=caoTai(W);r.poly=pts;r.minY=minY;r.maxY=maxY;r.bao=maxY-minY;r.m2=area/1e6;r.kg=r.m2*2.5*day;
+  r.W=W;r.hL=caoTai(0);r.hR=caoTai(W);r.poly=pts;r.poly0=pts0;r.minY=minY;r.maxY=maxY;r.bao=maxY-minY;r.m2=area/1e6;r.kg=r.m2*2.5*day;
   return done();
 }
 
@@ -694,8 +727,8 @@ function cardHtml(t,i){
   }
   b+='</div>';
   var coK=KHOET.some(function(k){return num(t['k'+k[0]+'R'])>0||num(t['k'+k[0]+'C'])>0;});
-  b+='<details class="khoet"'+(coK?' open':'')+'><summary>Khoét góc (hình chữ nhật)</summary>';
-  KHOET.forEach(function(k){b+='<div class="grid">'+field(t,'k'+k[0]+'R',k[1]+': rộng ngang','')+field(t,'k'+k[0]+'C','Cao đứng','')+'</div>';});
+  b+='<details class="khoet"'+(coK?' open':'')+'><summary>Khoét góc (hình chữ nhật)</summary><p class="temp">Rộng: đo ngang từ mép đứng của kính vào. Cao: đo đứng ở cạnh PHÍA TRONG của vết khoét, từ mép kính lên (khoét dưới) hoặc xuống (khoét trên).</p>';
+  KHOET.forEach(function(k){b+='<div class="grid">'+field(t,'k'+k[0]+'R',k[1]+': rộng ngang','')+field(t,'k'+k[0]+'C','Cao cạnh phía trong','')+'</div>';});
   b+='</details>';
   b+='<div class="f"><label for="t'+t.id+'-ghichu">Ghi chú tấm này</label><input id="t'+t.id+'-ghichu" data-k="ghichu" value="'+esc(t.ghichu)+'" placeholder="Vật cản, lỗ thêm ở mép trên..."></div>';
   b+='<div class="row"><button type="button" class="pri" data-xemhinh>Xem bản vẽ tấm này</button><button type="button" class="danger" data-del>Xóa tấm này</button></div>';
@@ -746,7 +779,9 @@ function banVe(t,p,r,m,idx){
   function botAt(x){return Math.max(bot(x),yMin);}
   var pts=r.poly.map(function(q){return f1(X(q[0]))+','+f1(Y(q[1]));}).join(' ');
   sb+='<polygon points="'+pts+'" fill="#cfe6ee" stroke="#17607a" stroke-width="2.5"'+(partial?' stroke-dasharray="8 5"':'')+'/>';
-  r.notch.forEach(function(k){sb+='<rect x="'+f1(X(k.x))+'" y="'+f1(Y(k.y+k.C))+'" width="'+f1(k.R*sc)+'" height="'+f1(k.C*sc)+'" fill="#f3f1ea" stroke="#17607a" stroke-width="2"/>'+tx(X(k.x+k.R/2),Y(k.y+k.C/2)+5,rd(k.R)+'×'+rd(k.C),{s:13});});
+  r.notch.forEach(function(k){var vo=k.trai?1:-1,xv=X(k.xi)+vo*10;
+    sb+=ln(xv,Y(k.yC),xv,Y(k.yIn),'#a3201c',1.5)+ln(xv-5,Y(k.yC),xv+5,Y(k.yC),'#a3201c',1.5)+ln(xv-5,Y(k.yIn),xv+5,Y(k.yIn),'#a3201c',1.5);
+    sb+=tx(xv+vo*6,(Y(k.yC)+Y(k.yIn))/2+5,'Khoét '+rd(k.R)+'×'+rd(k.C),{s:13,color:'#a3201c',a:k.trai?'start':'end'});});
   /* đầu trang */
   var head=ten(idx)+(coDoc?' · Góc '+(m.goc?'?':fmt1(deg(r.goc))+'°'):' · Tấm vuông')+' · Cao đứng '+(m.cao?'?':rd(num(t.kieu==='cheo'?t.cao:p.cao)));
   sb+=tx(VW/2,18,head,{s:16});
@@ -965,20 +1000,33 @@ function veNM(t,r,idx){
   function canX(x){return catX(pts,Math.min(Math.max(x,0.01),W-0.01));}
   function duoiAt(x){var v=canX(x);return v.length?v[0]:0;}
   function trenAt(x){var v=canX(x);return v.length?v[v.length-1]:0;}
+  var pts0=(r.poly0||r.poly).map(function(p){return [p[0]-x0,p[1]-y0];});
+  function can0(x){return catX(pts0,Math.min(Math.max(x,0.01),W-0.01));}
+  function duoi0(x){var v=can0(x);return v.length?v[0]:0;}
+  function tren0(x){var v=can0(x);return v.length?v[v.length-1]:0;}
   function tick(x,y,col){L(x-9,y+9,x+9,y-9,col||INK,2.5);}
   function dH(a,b,y,txt,col,size){L(a,y,b,y,col||INK,2);tick(a,y,col);tick(b,y,col);T(txt,(a+b)/2,y-10,size||34,700,col||INK,'center',true);}
   function dV(x,a,b,txt,col){L(x,a,x,b,col||INK,2);tick(x,a,col);tick(x,b,col);g.save();g.translate(x-12,(a+b)/2);g.rotate(-Math.PI/2);T(txt,0,0,34,700,col||INK,'center',true);g.restore();}
+  if((r.notch||[]).length){g.beginPath();pts0.forEach(function(q,i){if(i)g.lineTo(X(q[0]),Y(q[1]));else g.moveTo(X(q[0]),Y(q[1]));});g.closePath();g.setLineDash([10,8]);g.strokeStyle='#888888';g.lineWidth=1.5;g.stroke();g.setLineDash([]);}
   g.beginPath();pts.forEach(function(q,i){if(i)g.lineTo(X(q[0]),Y(q[1]));else g.moveTo(X(q[0]),Y(q[1]));});g.closePath();g.fillStyle='#dbe9ee';g.fill();g.strokeStyle=INK;g.lineWidth=4;g.stroke();
-  (r.notch||[]).forEach(function(k){var nx=X(k.x-x0),ny=Y(k.y+k.C-y0);g.fillStyle='#ffffff';g.fillRect(nx,ny,k.R*sc,k.C*sc);g.strokeStyle=INK;g.lineWidth=3;g.strokeRect(nx,ny,k.R*sc,k.C*sc);T(mm(k.R)+' × '+mm(k.C),nx+k.R*sc/2,ny+k.C*sc/2+10,28,700,INK,'center',true);});
+  /* khoét góc: cao ghi ở cạnh phía trong, rộng ghi ngang ở mép khoét */
+  (r.notch||[]).forEach(function(k){
+    /* số cao nằm trong chỗ khoét, sát cạnh phía trong; số rộng ngay trên/dưới mép khoét */
+    var vo=k.trai?1:-1,xi=X(k.xi-x0),xo=X(k.xo-x0),yC=Y(k.yC-y0),yI=Y(k.yIn-y0),xv=xi-vo*8;
+    L(xv,yC,xv,yI,RD,2);tick(xv,yC,RD);tick(xv,yI,RD);
+    g.save();g.translate((xi+xo)/2+10,(yC+yI)/2);g.rotate(-Math.PI/2);T(mm(k.C),0,0,28,700,RD,'center',true);g.restore();
+    var yR=k.duoi?yC-30:yC+30;L(xi,yC,xi,yR+(k.duoi?-8:8),'#888888',1.2,1);L(xo,yC,xo,yR+(k.duoi?-8:8),'#888888',1.2,1);
+    L(xi,yR,xo,yR,RD,2);tick(xi,yR,RD);tick(xo,yR,RD);T(mm(k.R),(xi+xo)/2,yR+(k.duoi?-10:30),28,700,RD,'center',true);
+  });
   /* rộng */
   var yW=oy-catDau*sc-75;
-  L(X(0),yW-14,X(0),Y(trenAt(0)),'#888888',1.2,1);L(X(W),yW-14,X(W),Y(trenAt(W)),'#888888',1.2,1);
+  L(X(0),yW-14,X(0),Y(tren0(0)),'#888888',1.2,1);L(X(W),yW-14,X(W),Y(tren0(W)),'#888888',1.2,1);
   dH(X(0),X(W),yW,mm(W));
   if(!db){
-    /* cạnh đứng, chênh cao */
-    var xHigh=s>0?W:0,xL1=X(0)-70,xR1=X(W)+80,xS1=s>0?xR1:xL1,xS2=s>0?xR1+90:xL1-90,yEH=duoiAt(xHigh),yTH=trenAt(xHigh);
-    if(r.hL>1)dV(xL1,Y(trenAt(0)),Y(duoiAt(0)),mm(r.hL));
-    if(r.hR>1)dV(xR1,Y(trenAt(W)),Y(duoiAt(W)),mm(r.hR));
+    /* cạnh đứng, chênh cao (đo theo góc tấm gốc, khoét ghi riêng) */
+    var xHigh=s>0?W:0,xL1=X(0)-70,xR1=X(W)+80,xS1=s>0?xR1:xL1,xS2=s>0?xR1+90:xL1-90,yEH=duoi0(xHigh),yTH=tren0(xHigh);
+    if(r.hL>1)dV(xL1,Y(tren0(0)),Y(duoi0(0)),mm(r.hL));
+    if(r.hR>1)dV(xR1,Y(tren0(W)),Y(duoi0(W)),mm(r.hR));
     if(coDoc&&yEH>1)dV(xS1,Y(yEH),Y(0),mm(yEH));
     if(catDau>0){var apex=yTH+catDau;dV(xS1,Y(apex),Y(yTH),mm(catDau));dV(xS2,Y(apex),Y(yEH),mm(caoTam));L(X(xHigh),Y(apex),xS2,Y(apex),'#888888',1.2,1);}
     if(coDoc&&yEH>1)L(X(xHigh),Y(yEH),xS1,Y(yEH),'#888888',1.2,1);
@@ -998,9 +1046,25 @@ function veNM(t,r,idx){
   }
   /* chuỗi ngang giữa các hàng, vẽ trong tấm như mẫu */
   var xp=[0].concat(r.lo.map(function(l){return l.x-x0;})).concat([W]),yGap=[];
+  /* vùng chữ của cụm số lỗ và khoét, để đường ngang né ra */
+  var chan=[];
+  function rongChu(s,sz){g.font='700 '+sz+'px '+F;return g.measureText(s).width;}
+  r.lo.forEach(function(l,i){
+    var xr=l.x-x0,hx=X(xr),h=t.hang[i],d=num(h.duoi),tr=num(h.tren),side=ben(i),xTxt=hx+side*78,dv=chatHep(i)?'':' mm',yLo=Y(l.yb+l.duoi-y0),w,y0b,y1b;
+    if(l.tren>0){var yG=(Y(l.yb+l.tren-y0)+yLo)/2;w=Math.max(rongChu('Trên '+rd(tr)+dv,30),rongChu('2 lỗ '+rd(tr-d)+dv,30),rongChu('Dưới '+rd(d)+dv,30));y0b=yG-58;y1b=yG+60;}
+    else{var yb=(yLo+Y(duoiAt(xr)))/2+12;w=rongChu('Dưới '+rd(d)+dv,30);y0b=yb-28;y1b=yb+8;}
+    chan.push({x0:Math.min(hx,xTxt+(side>0?0:-w))-4,x1:Math.max(hx,xTxt+(side>0?w:0))+4,y0:y0b,y1:y1b});
+  });
+  (r.notch||[]).forEach(function(k){var a=X(k.xi-x0),b=X(k.xo-x0),vo=k.trai?1:-1,p1=Y(k.yC-y0),p2=Y(k.yIn-y0);
+    var c0=(a+b)/2;chan.push({x0:Math.min(a,b,c0-55)-6,x1:Math.max(a,b,c0+55)+6,y0:Math.min(p1,p2)-75,y1:Math.max(p1,p2)+75});});
+  function vuong(b){var s2=0;chan.forEach(function(c){var w=Math.min(b.x1,c.x1)-Math.max(b.x0,c.x0),h=Math.min(b.y1,c.y1)-Math.max(b.y0,c.y0);if(w>0&&h>0)s2+=w*h;});return s2;}
   if(nH>0)for(var i=0;i<xp.length-1;i++){
-    var mid=(xp[i]+xp[i+1])/2,yd=duoiAt(mid)+(trenAt(mid)-duoiAt(mid))*0.62;yGap.push(yd);
-    dH(X(xp[i]),X(xp[i+1]),Y(yd),mm(xp[i+1]-xp[i]));
+    var mid=(xp[i]+xp[i+1])/2,xa=X(xp[i]),xb=X(xp[i+1]),txt=mm(xp[i+1]-xp[i]),tw=rongChu(txt,34),yd=null,best=Infinity;
+    [0.62,0.72,0.82,0.9,0.52,0.42,0.32,0.22,0.12,0.67,0.77,0.57,0.47,0.37,0.27,0.17,0.08,0.94].some(function(f){var y=duoiAt(mid)+(trenAt(mid)-duoiAt(mid))*f,yy=Y(y),xm=(xa+xb)/2;
+      var v=vuong({x0:xm-tw/2-8,x1:xm+tw/2+8,y0:yy-44,y1:yy})*4+vuong({x0:xa+16,x1:xb-16,y0:yy-4,y1:yy+4});
+      if(v<best){best=v;yd=y;}return v===0;});
+    yGap.push(yd);
+    dH(xa,xb,Y(yd),txt);
   }
   /* số từng hàng lỗ */
   var rp=Math.max(9,phi/2*sc);
@@ -1048,7 +1112,7 @@ function veNM(t,r,idx){
   });
   /* ghi chú nhà máy */
   var yN=1525,wN=CW-120;
-  yN=wrap('GHI CHÚ NHÀ MÁY: Đơn vị mm. Nhìn tấm từ phía trong. Khoảng giữa các hàng lỗ đo ngang. Khoảng lỗ đo đứng, tính từ mép kính ngay dưới lỗ. Kính cường lực '+day+' ly, màu '+mau+'. Khoan lỗ và khoét TRƯỚC khi tôi. Lỗ Ø'+phi+' khoan thẳng, mài vát mép lỗ. Mài mép cạnh toàn bộ. Dung sai ±1.'+((r.notch&&r.notch.length)?' Khoét góc: bo góc trong R10.':'')+(c.ghichu?' Ghi chú chung: '+c.ghichu:''),60,yN,wN,30,42,500,INK);
+  yN=wrap('GHI CHÚ NHÀ MÁY: Đơn vị mm. Nhìn tấm từ phía trong. Khoảng giữa các hàng lỗ đo ngang. Khoảng lỗ đo đứng, tính từ mép kính ngay dưới lỗ. Kính cường lực '+day+' ly, màu '+mau+'. Khoan lỗ và khoét TRƯỚC khi tôi. Lỗ Ø'+phi+' khoan thẳng, mài vát mép lỗ. Mài mép cạnh toàn bộ. Dung sai ±1.'+((r.notch&&r.notch.length)?' Khoét góc: số cao là cạnh phía trong của vết khoét, đo đứng từ mép kính; bo góc trong R10.':'')+(c.ghichu?' Ghi chú chung: '+c.ghichu:''),60,yN,wN,30,42,500,INK);
   T('Diện tích '+r.m2.toFixed(2).replace('.',',')+' m²  ·  khoảng '+rd(r.kg)+' kg'+(t.ghichu?'  ·  Ghi chú: '+t.ghichu:'')+'  ·  Người đo: '+(c.tho||'')+'  ·  Công trình: '+(c.diachi||''),60,yN+6,28,600,DIM);
   if(S.sample){g.save();g.translate(CW/2,CH/2);g.rotate(-0.35);g.globalAlpha=.22;T('VÍ DỤ, KHÔNG GỬI NHÀ MÁY',0,0,170,800,'#d00000','center');g.restore();}
   return cv;
