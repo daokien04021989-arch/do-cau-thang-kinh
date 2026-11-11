@@ -141,6 +141,7 @@ summary{font-weight:700;cursor:pointer;min-height:30px}
     <p class="sub">Đo tấm chéo</p>
     <ol>
       <li>Chọn mũi nhọn nằm bên trái hay phải. Đo rộng mép trên, đáy phẳng, cao đứng ở đầu đứng, và độ dốc 2 lần.</li>
+      <li>Đầu nhọn có đoạn đứng ngắn (cả 2 đầu đều đứng) thì đo đoạn đứng đó. Nhọn hẳn thì để 0.</li>
       <li>Khoảng giữa các hàng đo ngang. Hàng chỉ có 1 lỗ thì lỗ trên ghi 0.</li>
       <li>Lỗ sát mép trên (cách mép 30 đến 50) thẳng trên hàng thì ghi ở hàng đó. Lệch sang bên thì bấm "Thêm lỗ mép trên", đo ngang từ đầu đứng và từ tim lỗ đến mép trên.</li>
       <li>Tấm chéo không cần đo đường chéo, chỉ đo cao đứng lần 2.</li>
@@ -229,7 +230,7 @@ function today(){var d=new Date();return d.getFullYear()+'-'+('0'+(d.getMonth()+
 function newHang(){return {cach:'',duoi:'',tren:'',moTren:'',cheoA:'',cheoB:''};}
 function newTam(prev){
   var t={id:uid++,kieu:'doc',huong:'phai',cachDoc:'thuoc',ngang:'1000',dung:'',goc:'',cBac:'',rBac:'',cao:'',
-    dauT:'',dauP:'',rong:'',catDau:'0',catDuoi:'0',caoDau:'',hoNen:'0',goc2:'',dung2:'',ngangKT:'',cao2:'',dayPhang:'',cheoGoc:'',dinh:[{x:'',y:'',dai:''},{x:'',y:'',dai:''},{x:'',y:'',dai:''},{x:'',y:'',dai:''}],loLe:[],ghichu:'',hang:[newHang(),newHang(),newHang()]};
+    dauT:'',dauP:'',rong:'',catDau:'0',catDuoi:'0',caoDau:'',hoNen:'0',goc2:'',dung2:'',ngangKT:'',cao2:'',dayPhang:'',dauNgan:'0',cheoGoc:'',dinh:[{x:'',y:'',dai:''},{x:'',y:'',dai:''},{x:'',y:'',dai:''},{x:'',y:'',dai:''}],loLe:[],ghichu:'',hang:[newHang(),newHang(),newHang()]};
   KHOET.forEach(function(k){t['k'+k[0]+'R']='0';t['k'+k[0]+'C']='0';});
   if(prev){['kieu','huong','cachDoc','ngang','dung','goc','cBac','rBac','cao'].forEach(function(k){t[k]=prev[k];});}
   return t;
@@ -482,13 +483,16 @@ function tinhCheo(t,c){
   var n=JSON.parse(JSON.stringify(t)),nH=t.hang.length,cum=0;
   if(rong===null){thieu.push('rộng mép trên');keys.push('rong');}
   if(F===null){thieu.push('đáy phẳng');keys.push('dayPhang');}
-  n.kieu='nen';n.cachDoc='goc';n.hoNen='0';n.caoDau=t.cao;
+  /* dn: cạnh đứng ngắn ở đầu nhọn (anh Kiên 11-11-2026), 0 là nhọn hẳn */
+  var dn=Math.max(0,num(t.dauNgan)||0);
+  n.kieu='nen';n.cachDoc='goc';n.hoNen='0';n.caoDau=h!==null?String(h-dn):t.cao;
   t.hang.forEach(function(x,i){if(i>0){var v=num(x.cach);if(v!==null)cum=v;}});
   var du=true,gocT=null;
   if(rong!==null&&h!==null&&F!==null){
     if(h<=0||rong<=0)du=false;
+    else if(dn>=h){loi.push('Cạnh đứng đầu nhọn phải ngắn hơn cao đứng.');du=false;}
     else if(F<0||F>=rong){loi.push('Đáy phẳng phải ngắn hơn rộng mép trên.');du=false;}
-    else{gocT=Math.atan2(h,rong-F);n.goc=n.goc2=String(deg(gocT));}
+    else{gocT=Math.atan2(h-dn,rong-F);n.goc=n.goc2=String(deg(gocT));}
   }else du=false;
   if(!du){n.goc=n.goc2='30';}
   var biet=trai?num(t.dauP):num(t.dauT);
@@ -501,7 +505,7 @@ function tinhCheo(t,c){
     }else n.dauT=n.dauP='1';
   }
   var q=quyDoi(n);
-  if(q.ok&&du&&!loi.length){var Hp=rong*Math.tan(gocT);q.t.cao=String(Hp);q.t.catDau=String(Hp);}
+  if(q.ok&&du&&!loi.length){var Hp=rong*Math.tan(gocT);q.t.cao=String(Hp+dn);q.t.catDau=String(Hp);}
   var r=tinhCore(q.t,c);
   r.thieu=thieu.concat(h===null?[]:q.thieu,r.thieu);r.keys=keys.concat(h===null?[]:q.keys,r.keys);r.loi=loi.concat(q.loi,r.loi);
   r.canh=q.ok?q.canh.concat(r.canh):[];
@@ -733,6 +737,7 @@ function cardHtml(t,i){
   b+='<p class="sub">Bước 5. Kích thước tấm</p><div class="grid">';
   if(cheo){
     b+=field(t,'rong','Rộng mép trên','Đo ngang')+field(t,'dayPhang','Đáy phẳng','Đoạn đáy nằm ngang');
+    b+=field(t,'dauNgan','Cạnh đứng ở đầu nhọn','Đầu nhọn có đoạn đứng ngắn thì đo đứng đoạn đó. Nhọn hẳn thì để 0','full');
     if(n>0)b+=(t.huong==='trai'?field(t,'dauP','Hàng cuối → đầu phải, ngang','','full'):field(t,'dauT','Đầu trái → hàng 1, ngang','','full'));
   }else if(n>0)b+=field(t,'dauT','Đầu trái → hàng 1, ngang','')+field(t,'dauP','Hàng cuối → đầu phải, ngang','');
   else b+=field(t,'rong','Rộng ngang','Khi tấm không có hàng lỗ','full');
@@ -826,13 +831,13 @@ function banVe(t,p,r,m,idx){
       sb+=tx(X(s>0?W:0)+(s>0?-6:6),Y(botAt(xHigh)+hHigh)-6,'Cắt '+rd(catDau),{s:13,a:s>0?'end':'start'});}
   }
   /* hàng lỗ */
-  var xp=[0].concat(r.lo.map(function(l){return l.x;})).concat([W]);
+  var xp=[0].concat(r.lo.map(function(l){return l.x;})).concat([W]),prevPhai=false,prevX=-1e9;
   r.lo.forEach(function(l,i){
     var xs=X(l.x),yd=Y(l.yb+l.duoi),yt=l.tren>0?Y(l.yb+l.tren):yd,yE=Y(botAt(l.x)),h=p.hang[i],raw=(t.kieu==='nen'||t.kieu==='cheo')?t.hang[i]:h;
     sb+=ln(xs,yd,xs,yE,'#a3201c',1.5,1)+ln(xs,yE,xs,yChain+2,'#5d584b',.7,1);
     sb+='<circle cx="'+f1(xs)+'" cy="'+f1(yd)+'" r="4" fill="#fff" stroke="#a3201c" stroke-width="2"/>';
     if(l.tren>0)sb+=ln(xs,yt,xs,yd,'#a3201c',1.5)+'<circle cx="'+f1(xs)+'" cy="'+f1(yt)+'" r="4" fill="#fff" stroke="#a3201c" stroke-width="2"/>';
-    var gan=i+1<n&&X(r.lo[i+1].x)-xs<130,phai=xs+74<=X(W)+30&&!(gan&&xs-74>=X(0)-30),dx=phai?9:-9,a=phai?'start':'end',y0=(yd+yt)/2,red={color:'#a3201c',a:a,s:13};
+    var gan=i+1<n&&X(r.lo[i+1].x)-xs<130,choTrai=xs-74>=X(0)-30&&!(prevPhai&&xs-prevX<170),phai=xs+74<=X(W)+30&&!(gan&&choTrai),dx=phai?9:-9,a=phai?'start':'end',y0=(yd+yt)/2,red={color:'#a3201c',a:a,s:13};
     var mT=m['tren'+i],mD=m['duoi'+i],mo=t.kieu==='cheo'?num(t.hang[i].moTren):0;
     if(mo>0){var ym=Y(r.maxY-mo),yTop=Y(r.maxY);sb+=ln(xs,ym,xs,yTop,'#a3201c',1.5,1)+'<circle cx="'+f1(xs)+'" cy="'+f1(ym)+'" r="4" fill="#fff" stroke="#a3201c" stroke-width="2"/>'+tx(xs+((!phai&&xs+90<=VW)?9:-9),ym+5,'Mép trên '+rd(mo),{color:'#a3201c',a:(!phai&&xs+90<=VW)?'start':'end',s:13});}
     if(l.tren>0){
@@ -840,6 +845,7 @@ function banVe(t,p,r,m,idx){
       sb+=tx(xs+dx,y0+4,'2 lỗ '+((mT||mD)?'?':rd(num(raw.tren)-num(raw.duoi))),red);
       sb+=tx(xs+dx,y0+19,'Dưới '+(mD?'?':rd(num(raw.duoi))),red);
     }else sb+=tx(xs+dx,y0+5,'Dưới '+(mD?'?':rd(num(raw.duoi))),red);
+    prevPhai=phai;prevX=xs;
   });
   var leX=-1e9,leK=0;
   (r.le||[]).slice().sort(function(a,b){return a.x-b.x;}).forEach(function(l){var xs=X(l.x),ys=Y(l.y),yTop=Y(r.maxY);
