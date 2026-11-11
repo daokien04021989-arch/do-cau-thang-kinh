@@ -141,7 +141,9 @@ summary{font-weight:700;cursor:pointer;min-height:30px}
     <p class="sub">Đo tấm chéo</p>
     <ol>
       <li>Chọn mũi nhọn nằm bên trái hay phải. Đo rộng mép trên, đáy phẳng, cao đứng ở đầu đứng, và độ dốc 2 lần.</li>
-      <li>Khoảng giữa các hàng đo ngang. Có lỗ sát mép trên thì ghi khoảng từ tim lỗ đến mép trên.</li>
+      <li>Khoảng giữa các hàng đo ngang. Hàng chỉ có 1 lỗ thì lỗ trên ghi 0.</li>
+      <li>Lỗ sát mép trên (cách mép 30 đến 50) thẳng trên hàng thì ghi ở hàng đó. Lệch sang bên thì bấm "Thêm lỗ mép trên", đo ngang từ đầu đứng và từ tim lỗ đến mép trên.</li>
+      <li>Tấm chéo không cần đo đường chéo, chỉ đo cao đứng lần 2.</li>
     </ol>
     <p class="sub">Đo tấm đặc biệt</p>
     <ol>
@@ -449,7 +451,7 @@ function tinh(t,c){
     if(l>TOL_MM)r.loi.push(ten+' lệch '+rd(l)+' mm, quá '+TOL_MM+' mm. Kiểm tra lại từng số đã nhập rồi đo lại.');
     else r.dat.push(ten+' khớp, lệch '+l.toFixed(1).replace('.',',')+' mm.');
   }
-  for(var k=1;k<n;k++){
+  for(var k=1;k<n&&t.kieu!=='cheo';k++){
     var h=t.hang[k],A=num(h.cheoA),B=num(h.cheoB),d=coSo?cheoTinh(r,k):null,canB=d?d.B!==null:!(t.hang[0].tren==='0'&&h.tren==='0');
     if(A===null){r.thieu.push('đường chéo 1 hàng '+(k+1));r.keys.push('cheoA'+k);}
     if(canB&&B===null){r.thieu.push('đường chéo 2 hàng '+(k+1));r.keys.push('cheoB'+k);}
@@ -517,6 +519,19 @@ function tinhCheo(t,c){
       else dat.push('Góc đo khớp góc tính, lệch '+l.toFixed(2).replace('.',',')+'°.');
     }
   }
+  /* lỗ sát mép trên lệch khỏi hàng: đo ngang từ đầu đứng dọc mép trên (anh Kiên 11-11-2026) */
+  r.le=[];
+  (t.loLe||[]).forEach(function(l,i){
+    var d=num(l.x),mo=num(l.moTren);
+    if(d===null){r.thieu.push('lỗ mép trên '+(i+1)+' cách đầu đứng');r.keys.push('lx'+i);}
+    if(mo===null){r.thieu.push('lỗ mép trên '+(i+1)+' đến mép trên');r.keys.push('lm'+i);}
+    if(d===null||mo===null||r.W===null||!r.poly)return;
+    if(d<=0||mo<=0){r.loi.push('Lỗ mép trên '+(i+1)+': số đo phải lớn hơn 0.');return;}
+    var X=trai?r.W-d:d,ys=catX(r.poly,X),y=r.maxY-mo;
+    if(X<=0||X>=r.W||ys.length<2||y<=ys[0]){r.loi.push('Lỗ mép trên '+(i+1)+' nằm ngoài tấm kính. Xem lại số đo.');return;}
+    r.le.push({x:X,y:y,m:mo,d:d});
+    if(y-ys[0]<2*(num(c.day)||10))r.canh.push('Lỗ mép trên '+(i+1)+' quá sát mép dưới. Hỏi xưởng.');
+  });
   r.datSan=dat;
   r.xong=!r.thieu.length&&!r.loi.length&&r.W!==null;
   return r;
@@ -684,8 +699,8 @@ function hangHtml(t){
   t.hang.forEach(function(x,i){
     h+='<div class="chan"><div class="ten">Hàng '+(i+1)+(i===0?' (gốc)':'')+'</div><div class="grid">';
     if(i>0)h+=hangField(t,i,'cach',t.kieu==='doc'?'Cách hàng 1 theo dốc':'Cách hàng 1, ngang','full');
-    h+=hangField(t,i,'duoi','Lỗ dưới')+hangField(t,i,'tren','Lỗ trên');
-    if(t.kieu==='cheo'||t.kieu==='db')h+=hangField(t,i,'moTren','Lỗ sát mép trên: tim đến mép trên (không có thì bỏ trống)','full');
+    h+=hangField(t,i,'duoi','Lỗ dưới')+hangField(t,i,'tren','Lỗ trên (1 lỗ ghi 0)');
+    if(t.kieu==='cheo'||t.kieu==='db')h+=hangField(t,i,'moTren','Lỗ sát mép trên, thẳng trên hàng này: tim đến mép trên (không có, hoặc lệch sang bên thì bỏ trống)','full');
     h+='</div></div>';
   });
   return h;
@@ -707,6 +722,14 @@ function cardHtml(t,i){
   }
   b+='<p class="sub">'+(doc?'Bước 2 đến 4. ':'')+'Hàng lỗ, từ trái sang phải</p><p class="temp" style="margin:0">'+((nen||cheo)?'Từ tim lỗ đo thẳng xuống mép kính ngay bên dưới, mép dốc hay mép sát nền đều đo như vậy.':'Lỗ dưới, lỗ trên đo đứng từ cạnh dốc dưới.')+' Lỗ trên ghi 0 nếu hàng chỉ có 1 lỗ.</p>'+hangHtml(t);
   b+='<div class="row"><button type="button" data-addhang'+(n>=MAX_HANG?' disabled':'')+'>Thêm hàng</button><button type="button" data-subhang'+(n<1?' disabled':'')+'>Bớt hàng</button></div>';
+  if(cheo){
+    if(!t.loLe)t.loLe=[];
+    b+='<p class="sub">Lỗ sát mép trên, lệch khỏi hàng lỗ</p><p class="temp" style="margin:0">Lỗ trên cao cách mép trên khoảng 30 đến 50, không thẳng với lỗ dưới. Đo ngang dọc mép trên, từ đầu đứng (đầu '+(t.huong==='trai'?'phải':'trái')+') tới tim lỗ.</p>';
+    t.loLe.forEach(function(l,k){
+      b+='<div class="chan"><div class="ten">Lỗ mép trên '+(k+1)+'</div><div class="grid"><div class="f"><label for="t'+t.id+'-lx'+k+'">Cách đầu đứng, ngang</label><input class="num" id="t'+t.id+'-lx'+k+'" data-le="'+k+'" data-f="x" data-key="lx'+k+'" inputmode="decimal" value="'+esc(l.x)+'"></div><div class="f"><label for="t'+t.id+'-lm'+k+'">Tim đến mép trên</label><input class="num" id="t'+t.id+'-lm'+k+'" data-le="'+k+'" data-f="moTren" data-key="lm'+k+'" inputmode="decimal" value="'+esc(l.moTren)+'"></div></div></div>';
+    });
+    b+='<div class="row"><button type="button" data-addle>Thêm lỗ mép trên</button><button type="button" data-suble'+(t.loLe.length<1?' disabled':'')+'>Bớt lỗ mép trên</button></div>';
+  }
   b+='<p class="sub">Bước 5. Kích thước tấm</p><div class="grid">';
   if(cheo){
     b+=field(t,'rong','Rộng mép trên','Đo ngang')+field(t,'dayPhang','Đáy phẳng','Đoạn đáy nằm ngang');
@@ -720,7 +743,7 @@ function cardHtml(t,i){
   else if(t.kieu==='doc')b+='<p class="sub">Cắt góc nhọn (cắt ngang)</p><div class="grid">'+field(t,'catDau','Cắt đầu, góc đầu cao, hạ','Không biết thì để 0, xưởng quyết')+field(t,'catDuoi','Cắt đuôi, góc đầu thấp, nâng','Tấm chạm nền thì chọn Sát nền')+'</div>';
   b+='<p class="sub">Bước 6. Đo kiểm tra (bắt buộc)</p><p class="temp" style="margin:0">Căng thước đo thật, nhập đúng số đọc được. Lệch quá '+TOL_MM+' mm là không gửi được phiếu.</p><div class="grid">';
   b+=field(t,'cao2','Cao đứng, lần 2','Đo ở vị trí khác lần 1','full');
-  if(n>=2){
+  if(n>=2&&!cheo){
     for(var kk=1;kk<n;kk++){
       var mot=t.hang[0].tren==='0';
       b+=hangField(t,kk,'cheoA','Chéo 1: '+(mot?'lỗ':'lỗ trên')+' hàng 1 → lỗ dưới hàng '+(kk+1),'full');
@@ -818,6 +841,11 @@ function banVe(t,p,r,m,idx){
       sb+=tx(xs+dx,y0+19,'Dưới '+(mD?'?':rd(num(raw.duoi))),red);
     }else sb+=tx(xs+dx,y0+5,'Dưới '+(mD?'?':rd(num(raw.duoi))),red);
   });
+  var leX=-1e9,leK=0;
+  (r.le||[]).slice().sort(function(a,b){return a.x-b.x;}).forEach(function(l){var xs=X(l.x),ys=Y(l.y),yTop=Y(r.maxY);
+    leK=(xs-leX<80)?leK+1:0;leX=xs;var yy=ys+17+(leK%2)*30,xc=Math.max(32,Math.min(VW-32,xs));
+    sb+=ln(xs,ys,xs,yTop,'#a3201c',1.5,1)+'<circle cx="'+f1(xs)+'" cy="'+f1(ys)+'" r="4" fill="#fff" stroke="#a3201c" stroke-width="2"/>';
+    sb+=tx(xc,yy,'Mép trên '+rd(l.m),{color:'#a3201c',s:12})+tx(xc,yy+14,'Đầu đứng '+rd(l.d),{color:'#a3201c',s:12});});
   /* khoảng theo dốc */
   if(doc&&n>1){
     var L=Math.sqrt(1+tan*tan),ux=1/L,uy=-s*tan/L,nx=-uy,ny=ux;
@@ -858,7 +886,7 @@ function goiY(t,r){
   if(t.kieu!=='db'&&c1!==null)m.cao2=c1;
   if(r.W===null)return m;
   if(t.kieu==='db'&&r.poly){m.cheoGoc=cheoDinh(r);r.poly.forEach(function(p,i){m['da'+i]=dinhDai(r.poly,i);});}
-  if(n>=2&&r.lo.length===n){
+  if(n>=2&&r.lo.length===n&&t.kieu!=='cheo'){
     for(var k=1;k<n;k++){var d=cheoTinh(r,k);m['cheoA'+k]=d.A;if(d.B!==null)m['cheoB'+k]=d.B;}
     if(t.kieu==='doc')m.ngangKT=r.lo[n-1].x-r.lo[0].x;
   }
@@ -1109,7 +1137,18 @@ function veNM(t,r,idx){
     holeMark(hx,Y(yLo));if(l.tren>0)holeMark(hx,Y(yHi));
     if(cheo&&num(h.moTren)>0){var yM=trenAt(xr)-num(h.moTren);L(hx,Y(trenAt(xr)),hx,Y(yM),INK,1.5,1);holeMark(hx,Y(yM));T(mm(num(h.moTren)),hx-side*20,Y(yM)+10,32,700,INK,side>0?'right':'left',true);}
   });
-  (r.le||[]).forEach(function(l){
+  if(cheo){
+    /* lỗ mép trên lệch hàng: ghi ngay dưới lỗ, khoảng tới mép trên và tới đầu đứng */
+    var dPhai=t.huong==='trai',lx=-1e9,lk=0;
+    (r.le||[]).slice().sort(function(a,b){return a.x-b.x;}).forEach(function(l){
+      var xr=l.x-x0,yr=l.y-y0,hx=X(xr),hy=Y(yr),xd=dPhai?W:0;
+      lk=(hx-lx<380)?lk+1:0;lx=hx;
+      L(hx,Y(trenAt(xr)),hx,hy,INK,1.5,1);holeMark(hx,hy);
+      var xc=Math.max(X(0)+200,Math.min(X(W)-200,hx)),yy=hy+48+(lk%2)*80;
+      T('Cách mép trên '+mm(l.m),xc,yy,28,700,RD,'center',true);
+      T('Cách mép '+(dPhai?'phải':'trái')+' '+mm(Math.abs(xd-xr)),xc,yy+34,28,700,INK,'center',true);
+    });
+  }else (r.le||[]).forEach(function(l){
     var xr=l.x-x0,yr=l.y-y0,hx=X(xr),hy=Y(yr);
     L(hx,Y(trenAt(xr)),hx,hy,INK,1.5,1);L(X(0),hy,hx,hy,INK,1.5,1);holeMark(hx,hy);
     T(mm(xr)+' từ mép trái, '+mm(l.m)+' từ mép trên',hx+rp+14,hy+40,30,700,INK,'left',true);
